@@ -120,13 +120,29 @@ private:
 	int DBCnt;
     byte LastBlk;
     TSZL SZL;
+    // Upload/download state
+    PS7Area FUpldArea;
+    int FUpldOffset;
+    byte FUpldID;
+    byte FDownldID;
+    int FDownldRemain;
+    bool FDownldActive;
+    PS7Area FDownldArea;
+    int FDownldOffset;
+    int FDownldTotal;
+    byte FDownldBlkType;
+    word FDownldBlkNum;
+    word FSeq;
     byte BCD(word Value);
     // Checks the consistence of the incoming PDU
     bool CheckPDU_in(int PayloadSize);
+    // Handles the client response to a download slice request
+    bool PerformDownloadResponse(int &Size);
     void FillTime(PS7Time PTime);
 protected:
     int DataSizeByte(int WordLength);
     bool ExecuteRecv();
+    bool ExecuteSend();
     void DoEvent(longword Code, word RetCode, word Param1, word Param2,
       word Param3, word Param4);
     void DoReadEvent(longword Code, word RetCode, word Param1, word Param2,

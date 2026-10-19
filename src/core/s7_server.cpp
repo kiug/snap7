@@ -106,12 +106,113 @@ TS7Worker::TS7Worker()
     FPDULength=2048;
     DBCnt     =0;
     LastBlk   =Block_DB;
+    FUpldArea =0;
+    FUpldOffset=0;
+    FUpldID   =0;
+    FDownldID =0;
+    FDownldRemain=0;
+    FDownldActive=0;
+    FDownldArea=0;
+    FDownldOffset=0;
+    FDownldTotal=0;
+    FDownldBlkType=0;
+    FDownldBlkNum=0;
+    FSeq=0;
 }
 
 bool TS7Worker::ExecuteRecv()
 {
     WorkInterval=FServer->WorkInterval;
     return TIsoTcpWorker::ExecuteRecv();
+}
+//------------------------------------------------------------------------------
+bool TS7Worker::ExecuteSend()
+{
+    // Server-driven download: send the next slice request (or the end-of-
+    // download request once every slice has been received).
+    if (!FDownldActive)
+        return true;
+
+    byte Buf[256];
+    std::memset(Buf, 0, sizeof(Buf));
+
+    TS7ReqHeader* Hdr = (TS7ReqHeader*)Buf;
+    PReqDownloadParams Req = PReqDownloadParams(Buf + sizeof(TS7ReqHeader));
+    bool Last = (FDownldRemain <= 0);
+
+    Hdr->P = 0x32;
+    Hdr->PDUType = PduType_request;
+    Hdr->AB_EX = 0x0000;
+    FSeq = FSeq + 1;
+    Hdr->Sequence = FSeq;
+    Hdr->ParLen = SwapWord(sizeof(TReqDownloadParams));
+    Hdr->DataLen = 0x0000;
+
+    Req->Fun = Last ? pduDownloadEnded : pduDownload;
+    Req->Len_1 = 0x09;
+    Req->Prefix = 0x5F;
+    Req->BlkPrfx = 0x30;
+    Req->BlkType = FDownldBlkType;
+    word N = FDownldBlkNum;
+    Req->AsciiBlk[4] = (N % 10) + 0x30; N /= 10;
+    Req->AsciiBlk[3] = (N % 10) + 0x30; N /= 10;
+    Req->AsciiBlk[2] = (N % 10) + 0x30; N /= 10;
+    Req->AsciiBlk[1] = (N % 10) + 0x30; N /= 10;
+    Req->AsciiBlk[0] = (N % 10) + 0x30;
+    Req->P = 0x50;
+
+    isoSendBuffer(Buf, sizeof(TS7ReqHeader) + sizeof(TReqDownloadParams));
+    return true;
+}
+//------------------------------------------------------------------------------
+bool TS7Worker::PerformDownloadResponse(int &Size)
+{
+    PS7ResHeader23 Answer = PS7ResHeader23(&PDU.Payload);
+    byte Fun = *(pbyte(Answer) + ResHeaderSize23);
+
+    if (Fun == pduDownloadEnded)
+    {
+        // Client confirmed the end of download; the worker then handles the
+        // insert/delete control request that follows.
+        FDownldActive = false;
+        FDownldArea = 0;
+        DoEvent(evcUpload, evrNoError, evsUnknown, FDownldBlkType, FDownldBlkNum, 0);
+        return true;
+    }
+
+    if (Fun != pduDownload)
+    {
+        FDownldActive = false;
+        FDownldArea = 0;
+        return true;
+    }
+
+    if (Answer->Error != 0)
+    {
+        FDownldActive = false;
+        FDownldArea = 0;
+        return true;
+    }
+
+    PResDownloadDataHeader ResData = PResDownloadDataHeader(
+        pbyte(Answer) + ResHeaderSize23 + sizeof(TResDownloadParams));
+    word DataLen = SwapWord(ResData->DataLen);
+    pbyte Source = pbyte(ResData) + sizeof(TResDownloadDataHeader);
+
+    // Best-effort store into the destination DB area.
+    if (FDownldArea != 0 && FDownldArea->PData != 0)
+    {
+        int Avail = FDownldArea->Size - FDownldOffset;
+        int N = (int(DataLen) < Avail) ? int(DataLen) : Avail;
+        if (N > 0)
+            std::memcpy(FDownldArea->PData + FDownldOffset, Source, N);
+    }
+
+    FDownldOffset += DataLen;
+    FDownldRemain -= DataLen;
+    if (FDownldRemain < 0)
+        FDownldRemain = 0;
+    return true;
 }
 //------------------------------------------------------------------------------
 bool TS7Worker::CheckPDU_in(int PayloadSize)
@@ -168,6 +269,10 @@ void TS7Worker::FragmentSkipped(int Size)
 //------------------------------------------------------------------------------
 bool TS7Worker::IsoPerformCommand(int &Size)
 {
+    // Server-driven download: consume the client's response to a slice request
+    // (PDUType_response) while a download is in progress.
+    if (FDownldActive && (PDUH_in->PDUType == PduType_response))
+        return PerformDownloadResponse(Size);
     // Checks for Ack fragment
     if (Size==0)
         return PerformPDUAck(Size);
@@ -882,24 +987,138 @@ bool TS7Worker::PerformFunctionControl(byte PduFun)
 //==============================================================================
 bool TS7Worker::PerformFunctionUpload()
 {
-    TS7Answer23 Answer;
+    byte PDUFun = *(pbyte(PDUH_in) + ReqHeaderSize);
+    byte RespBuf[2048];
+    TS7ResHeader23* Answer = (TS7ResHeader23*)RespBuf;
 
-    // Upload is not implemented, however to avoid that S7 manager hangs
-    // we simulate a cpu read/write protected.
-    // We can see the directory but can't upload/download anything
+    Answer->P = 0x32;
+    Answer->PDUType = PduType_response;
+    Answer->AB_EX = 0x0000;
+    Answer->Sequence = PDUH_in->Sequence;
 
-    // Prepares the answer
-    Answer.Header.P=0x32;
-    Answer.Header.PDUType =pduResponse;
-    Answer.Header.AB_EX=0x0000;
-    Answer.Header.Sequence=PDUH_in->Sequence;
-    Answer.Header.ParLen=0;
-    Answer.Header.DataLen=0;
-    Answer.Header.Error=SwapWord(Code7NeedPassword);
-    // Sends the answer
-    isoSendBuffer(&Answer,sizeof(TS7ResHeader23));
+    if (PDUFun == pduStartUpload)
+    {
+        PReqFunStartUploadParams ReqParams =
+            PReqFunStartUploadParams(pbyte(PDUH_in) + ReqHeaderSize);
+        word BlkNum = 0;
+        for (int c = 0; c < 5; c++)
+            BlkNum = BlkNum * 10 + (ReqParams->AsciiBlk[c] - 0x30);
 
-    DoEvent(evcUpload,evrCannotUpload,evsStartUpload,0,0,0);
+        // Locate the block to upload (only DBs are served).
+        FUpldArea = 0;
+        FUpldOffset = 0;
+        FUpldID = 1;
+        if (ReqParams->BlkType == Block_DB)
+            FUpldArea = FServer->FindDB(BlkNum);
+
+        Answer->ParLen = SwapWord(sizeof(TResFunStartUploadParams));
+        Answer->DataLen = 0x0000;
+        Answer->Error = 0x0000;
+
+        PResFunStartUploadParams ResParams =
+            PResFunStartUploadParams(RespBuf + sizeof(TS7ResHeader23));
+        std::memset(ResParams, 0, sizeof(TResFunStartUploadParams));
+        ResParams->FunSUpld = pduStartUpload;
+        ResParams->Upload_ID = FUpldID;
+
+        isoSendBuffer(RespBuf, sizeof(TS7ResHeader23) + sizeof(TResFunStartUploadParams));
+        DoEvent(evcUpload, evrNoError, evsStartUpload, ReqParams->BlkType, BlkNum, 0);
+    }
+    else if (PDUFun == pduUpload)
+    {
+        if (FUpldArea == 0)
+        {
+            Answer->ParLen = 0x0000;
+            Answer->DataLen = 0x0000;
+            Answer->Error = SwapWord(Code7FunNotAvailable);
+            isoSendBuffer(RespBuf, sizeof(TS7ResHeader23));
+            return true;
+        }
+
+        int Total = FUpldArea->Size;
+        int Remaining = Total - FUpldOffset;
+        int MaxChunk = FPDULength - 64;
+        if (MaxChunk < 64)
+            MaxChunk = 64;
+        int Chunk = (Remaining < MaxChunk) ? Remaining : MaxChunk;
+        bool Last = (FUpldOffset + Chunk) >= Total;
+        pbyte DataPtr = FUpldArea->PData + FUpldOffset;
+
+        if (FUpldOffset == 0)
+        {
+            // First slice carries the full block-info header.
+            Answer->ParLen = SwapWord(sizeof(TResFunUploadParams));
+            Answer->DataLen = SwapWord(word(sizeof(TResFunUploadDataHeaderFirst) + Chunk));
+            Answer->Error = 0x0000;
+
+            PResFunUploadParams ResParams =
+                PResFunUploadParams(RespBuf + sizeof(TS7ResHeader23));
+            ResParams->FunUpld = pduUpload;
+            ResParams->EoU = Last ? 0x00 : 0x01;
+
+            PResFunUploadDataHeaderFirst H = PResFunUploadDataHeaderFirst(
+                RespBuf + sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams));
+            std::memset(H, 0, sizeof(TResFunUploadDataHeaderFirst));
+            H->Length = SwapWord(word(sizeof(TResFunUploadDataHeaderFirst) + Chunk - 4));
+            H->Uk_FB = 0xFB;
+            H->Cst_pp = 0x7070;
+            H->Uk_01 = 0x01;
+            H->BlkFlags = 0x01;
+            H->BlkLang = BlockLangDB;
+            H->SubBlkType = SubBlk_DB;
+            H->BlkNum = SwapWord(FUpldArea->Number);
+            H->LenLoadMem = SwapDWord(Total + 92);
+            H->CodeTime_dy = SwapWord(5800);
+            H->IntfTime_dy = H->CodeTime_dy;
+            H->SbbLen = 0x1400;
+            H->MC7Len = SwapWord(Total);
+
+            std::memcpy(RespBuf + sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams) +
+                            sizeof(TResFunUploadDataHeaderFirst),
+                        DataPtr, Chunk);
+            isoSendBuffer(RespBuf, sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams) +
+                             sizeof(TResFunUploadDataHeaderFirst) + Chunk);
+        }
+        else
+        {
+            // Subsequent slices carry the short header.
+            Answer->ParLen = SwapWord(sizeof(TResFunUploadParams));
+            Answer->DataLen = SwapWord(word(sizeof(TResFunUploadDataHeaderNext) + Chunk));
+            Answer->Error = 0x0000;
+
+            PResFunUploadParams ResParams =
+                PResFunUploadParams(RespBuf + sizeof(TS7ResHeader23));
+            ResParams->FunUpld = pduUpload;
+            ResParams->EoU = Last ? 0x00 : 0x01;
+
+            PResFunUploadDataHeaderNext H = PResFunUploadDataHeaderNext(
+                RespBuf + sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams));
+            H->Length = SwapWord(word(sizeof(TResFunUploadDataHeaderNext) + Chunk - 4));
+            H->Uk_00 = 0x00;
+            H->Uk_FB = 0xFB;
+
+            std::memcpy(RespBuf + sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams) +
+                            sizeof(TResFunUploadDataHeaderNext),
+                        DataPtr, Chunk);
+            isoSendBuffer(RespBuf, sizeof(TS7ResHeader23) + sizeof(TResFunUploadParams) +
+                             sizeof(TResFunUploadDataHeaderNext) + Chunk);
+        }
+        FUpldOffset += Chunk;
+    }
+    else if (PDUFun == pduEndUpload)
+    {
+        Answer->ParLen = SwapWord(sizeof(TResFunEndUploadParams));
+        Answer->DataLen = 0x0000;
+        Answer->Error = 0x0000;
+
+        PResFunEndUploadParams ResParams =
+            PResFunEndUploadParams(RespBuf + sizeof(TS7ResHeader23));
+        ResParams->FunEUpld = pduEndUpload;
+
+        isoSendBuffer(RespBuf, sizeof(TS7ResHeader23) + sizeof(TResFunEndUploadParams));
+        FUpldArea = 0;
+    }
+
     return true;
 }
 //==============================================================================
@@ -907,24 +1126,43 @@ bool TS7Worker::PerformFunctionUpload()
 //==============================================================================
 bool TS7Worker::PerformFunctionDownload()
 {
-    TS7Answer23 Answer;
+    PReqStartDownloadParams ReqParams =
+        PReqStartDownloadParams(pbyte(PDUH_in) + ReqHeaderSize);
+    byte RespBuf[64];
+    TS7ResHeader23* Answer = (TS7ResHeader23*)RespBuf;
 
-    // Download is not implemented, however to avoid that S7 manager hangs
-    // we simulate a cpu read/write protected.
-    // We can see the directory but can't upload/download anything
+    // Decode the ASCII block number and load-memory size.
+    word BlkNum = 0;
+    for (int c = 0; c < 5; c++)
+        BlkNum = BlkNum * 10 + (ReqParams->AsciiBlk[c] - 0x30);
+    int LoadSize = 0;
+    for (int c = 0; c < 6; c++)
+        LoadSize = LoadSize * 10 + (ReqParams->AsciiLoad[c] - 0x30);
 
-    // Prepares the answer
-    Answer.Header.P=0x32;
-    Answer.Header.PDUType =pduResponse;
-    Answer.Header.AB_EX=0x0000;
-    Answer.Header.Sequence=PDUH_in->Sequence;
-    Answer.Header.ParLen=0;
-    Answer.Header.DataLen=0;
-    Answer.Header.Error=SwapWord(Code7NeedPassword);
-    // Sends the answer
-    isoSendBuffer(&Answer,sizeof(TS7ResHeader23));
+    // Prepare the server-driven download state. The worker sends slice
+    // requests from ExecuteSend() and collects the data from ExecuteRecv().
+    FDownldArea = (ReqParams->BlkType == Block_DB) ? FServer->FindDB(BlkNum) : 0;
+    FDownldOffset = 0;
+    FDownldTotal = LoadSize;
+    FDownldRemain = LoadSize;
+    FDownldBlkType = ReqParams->BlkType;
+    FDownldBlkNum = BlkNum;
+    FDownldID = ReqParams->Dwnld_ID;
+    FDownldActive = true;
 
-    DoEvent(evcUpload,evrCannotDownload, evsStartDownload,0,0,0);
+    // Acknowledge the start-download request.
+    Answer->P = 0x32;
+    Answer->PDUType = PduType_response;
+    Answer->AB_EX = 0x0000;
+    Answer->Sequence = PDUH_in->Sequence;
+    Answer->ParLen = SwapWord(sizeof(TResStartDownloadParams));
+    Answer->DataLen = 0x0000;
+    Answer->Error = 0x0000;
+    *pbyte(RespBuf + sizeof(TS7ResHeader23)) = pduReqDownload;
+
+    isoSendBuffer(RespBuf, sizeof(TS7ResHeader23) + sizeof(TResStartDownloadParams));
+
+    DoEvent(evcUpload, evrNoError, evsStartDownload, ReqParams->BlkType, BlkNum, 0);
     return true;
 }
 //==============================================================================
