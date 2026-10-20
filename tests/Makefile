@@ -124,7 +124,7 @@ cov-report:
 # Enforce a line-coverage threshold with gcovr. Run after cov/cov-build+cov-run
 # so the .gcda data is present. Requires: pip install gcovr.
 cov-check:
-	gcovr --root .. --object-directory $(BUILD) \
+	gcovr --root "$(abspath ..)" --object-directory "$(abspath $(BUILD))" \
 		--filter 'src/.*\.cpp$$' \
 		--fail-under-line 85 --print-summary
 
