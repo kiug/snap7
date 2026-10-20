@@ -10,7 +10,9 @@
 
 CXX      ?= g++
 CXXFLAGS ?= -O0 -g -std=c++14 -Wall
-INCLUDES := -I../src/sys -I../src/core -I../src/lib
+# Absolute include paths so gcov/gcovr can resolve the header files recorded in
+# the .gcno data regardless of the working directory.
+INCLUDES := -I$(abspath ../src/sys) -I$(abspath ../src/core) -I$(abspath ../src/lib)
 LIBS     := -lpthread -lrt
 BUILD    := build
 
@@ -123,9 +125,13 @@ cov-report:
 
 # Enforce a line-coverage threshold with gcovr. Run after cov/cov-build+cov-run
 # so the .gcda data is present. Requires: pip install gcovr.
+#
+# gcovr matches a relative --filter against paths relative to the current
+# working directory (tests/), not the --root, so the source files are at
+# ../src/... and the pattern must account for that prefix.
 cov-check:
 	gcovr --root "$(abspath ..)" --object-directory "$(abspath $(BUILD))" \
-		--filter 'src/.*\.cpp$$' \
+		--filter '.*/src/.*\.cpp$$' \
 		--fail-under-line 85 --print-summary
 
 clean:
