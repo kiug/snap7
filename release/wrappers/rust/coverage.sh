@@ -82,21 +82,27 @@ elif [[ "$MODE" == "--rust" ]]; then
     fi
 
     echo "==> Building and running tests with Rust coverage enabled"
-    RUSTFLAGS="-C instrument-coverage" LLVM_PROFILE_FILE="target/cov-rust/%p-%m.profraw" cargo test --quiet
+    PROFRAW_DIR="target/cov-rust"
+    rm -rf "$PROFRAW_DIR"
+    mkdir -p "$PROFRAW_DIR"
+    RUSTFLAGS="-C instrument-coverage" \
+        LLVM_PROFILE_FILE="$PROFRAW_DIR/%p-%m.profraw" cargo test --quiet
 
     echo "==> Merging and reporting with llvm-cov"
-    PROFRAW_DIR="target/cov-rust"
-    mkdir -p "$PROFRAW_DIR"
     PROFRAW="$(find "$PROFRAW_DIR" -name '*.profraw' -print | tr '\n' ' ')"
     "$PROFDATA" merge -sparse $PROFRAW -o "$PROFRAW_DIR/coverage.profdata"
 
-    # Report on the library's unit-test binary (integration tests are separate
-    # binaries; this pass is a best-effort view of the Rust wrapper code).
-    TEST_BIN="$(find target/debug/deps -maxdepth 1 -name 'snap7-*' -type f -executable | head -n1)"
+    # Report on every instrumented test binary (unit + integration tests) so
+    # that the wrapper code exercised through the public API is counted.
+    OBJECTS=()
+    while IFS= read -r bin; do
+        OBJECTS+=(--object "$bin")
+    done < <(find target/debug/deps -maxdepth 1 -type f -executable \
+        ! -name 'build_script*' ! -name '*.d' | sort)
     "$LLVM_COV" report \
         --ignore-filename-regex='/.cargo/|/rustc/' \
         --instr-profile "$PROFRAW_DIR/coverage.profdata" \
-        --object "$TEST_BIN"
+        "${OBJECTS[@]}"
 else
     echo "unknown mode: $MODE (use --cpp or --rust)" >&2
     exit 1

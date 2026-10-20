@@ -492,10 +492,11 @@ mod tests {
 
     #[test]
     fn block_info_conversion() {
-        let mut raw = ffi::TS7BlockInfo::default();
-        raw.blk_number = 7;
-        raw.author[0] = b'a';
-        raw.author[1] = b'b';
+        let raw = ffi::TS7BlockInfo {
+            blk_number: 7,
+            author: [b'a', b'b', 0, 0, 0, 0, 0, 0, 0],
+            ..ffi::TS7BlockInfo::default()
+        };
         let info: BlockInfo = raw.into();
         assert_eq!(info.block_number, 7);
         assert_eq!(info.author, "ab");
