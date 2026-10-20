@@ -1,0 +1,15 @@
+[package]
+name = "snap7"
+version = "0.1.0"
+edition = "2021"
+description = "Rust wrapper for the Snap7 S7 communication library"
+license = "LGPL-3.0"
+build = "build.rs"
+
+[lib]
+name = "snap7"
+path = "src/lib.rs"
+
+# No external runtime dependencies: the FFI layer is hand-written and the Snap7
+# C++ sources are compiled and linked by build.rs using the system toolchain.
+[dependencies]
