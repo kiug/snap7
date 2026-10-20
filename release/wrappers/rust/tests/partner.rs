@@ -6,8 +6,10 @@
 //! The round-trip test therefore degrades gracefully (and still exercises the
 //! bind-error path) when the port cannot be bound.
 
-use crate::ffi;
-use crate::tests::{cstr, partner};
+mod common;
+
+use common::{cstr, partner};
+use snap7::ffi;
 
 #[test]
 fn create_and_destroy_active_partner() {

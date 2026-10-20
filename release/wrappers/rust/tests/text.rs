@@ -1,8 +1,10 @@
 //! Tests for the error-text helpers (`Cli_ErrorText`, `Srv_ErrorText`,
 //! `Par_ErrorText`, `Srv_EventText`).
 
-use crate::ffi;
-use crate::tests::read_c_string;
+mod common;
+
+use common::read_c_string;
+use snap7::ffi;
 
 fn text_buf() -> Vec<u8> {
     vec![0u8; 1024]

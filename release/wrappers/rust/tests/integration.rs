@@ -1,9 +1,11 @@
 //! Integration tests: a Snap7 client talking to a Snap7 server over loopback.
 
+mod common;
+
 use std::sync::MutexGuard;
 
-use crate::ffi;
-use crate::tests::{client, cstr, lock_net, server, Object, TEST_PORT};
+use common::{client, cstr, lock_net, server, Object, TEST_PORT};
+use snap7::ffi;
 
 const DB1: u16 = 1;
 const DB2: u16 = 2;
@@ -588,7 +590,7 @@ fn get_order_code() {
     let mut order = ffi::TS7OrderCode::default();
     let rc = unsafe { ffi::Cli_GetOrderCode(h.client.raw(), &mut order) };
     assert_eq!(rc, 0);
-    assert!(!crate::tests::read_c_string(&order.code).is_empty());
+    assert!(!common::read_c_string(&order.code).is_empty());
 }
 
 #[test]
@@ -597,7 +599,7 @@ fn get_cpu_info() {
     let mut info = ffi::TS7CpuInfo::default();
     let rc = unsafe { ffi::Cli_GetCpuInfo(h.client.raw(), &mut info) };
     assert_eq!(rc, 0);
-    assert!(!crate::tests::read_c_string(&info.module_type_name).is_empty());
+    assert!(!common::read_c_string(&info.module_type_name).is_empty());
 }
 
 #[test]

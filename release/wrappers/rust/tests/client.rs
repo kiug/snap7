@@ -1,10 +1,12 @@
 //! Client lifecycle, parameter and error-path tests that do not require a
 //! running server.
 
+mod common;
+
 use std::ffi::CString;
 
-use crate::ffi;
-use crate::tests::{client, cstr};
+use common::{client, cstr};
+use snap7::ffi;
 
 #[test]
 fn create_and_destroy_client() {

@@ -1,8 +1,10 @@
 //! Server lifecycle, parameter and error-path tests that do not require a
 //! client.
 
-use crate::ffi;
-use crate::tests::{cstr, lock_net, server, TEST_PORT};
+mod common;
+
+use common::{cstr, lock_net, server, TEST_PORT};
+use snap7::ffi;
 
 #[test]
 fn create_and_destroy_server() {

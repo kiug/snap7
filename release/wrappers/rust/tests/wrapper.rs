@@ -1,7 +1,9 @@
 //! Tests for the safe wrapper API, exercising the thin layer over the FFI.
 
-use crate::tests::lock_net;
-use crate::{Area, Client, Server, ServerArea, WordLen};
+mod common;
+
+use common::lock_net;
+use snap7::{Area, Client, Server, ServerArea, WordLen};
 
 const TEST_PORT: u16 = 4103;
 

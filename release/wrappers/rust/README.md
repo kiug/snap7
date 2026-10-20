@@ -24,7 +24,7 @@ required.
 | `src/client.rs` | Safe `Client` wrapper (`Cli_*`) |
 | `src/server.rs` | Safe `Server` wrapper (`Srv_*`) |
 | `src/partner.rs` | Safe `Partner` wrapper (`Par_*`) |
-| `rust-tests/` | Test crate that exercises the wrapper and the raw FFI |
+| `tests/` | Integration tests (public API + raw FFI) and shared `common/` helpers |
 
 ## Usage
 
@@ -76,10 +76,9 @@ and `ar`).
 
 ## Tests
 
-The test suite lives in [`rust-tests/`](rust-tests):
+Unit tests live in `src/` (`#[cfg(test)]`), integration tests in `tests/`:
 
 ```sh
-cd rust-tests
 cargo test
 ```
 
@@ -89,5 +88,5 @@ Setting `SNAP7_COVERAGE=1` recompiles the C++ sources with `--coverage` so that
 `gcov` / `lcov` can produce a line-coverage report for the C++ implementation:
 
 ```sh
-SNAP7_COVERAGE=1 cargo test
+./coverage.sh --cpp
 ```

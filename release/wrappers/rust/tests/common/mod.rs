@@ -1,16 +1,16 @@
-//! Shared test helpers and module declarations.
-
-mod client;
-mod integration;
-mod partner;
-mod server;
-mod text;
-mod wrapper;
+//! Shared helpers for the Snap7 integration tests.
+//!
+//! This module is included from each integration test with `mod common;`. It is
+//! not itself a test binary.
+//!
+//! Each helper is used by only a subset of the integration test binaries, so
+//! allow dead code to avoid per-binary warnings.
+#![allow(dead_code)]
 
 use std::ffi::CString;
 use std::sync::Mutex;
 
-use crate::ffi;
+use snap7::ffi;
 
 /// Serializes tests that bind network ports. Snap7 uses a fixed local/remote
 /// port (default 102, overridden in tests to a high port), so only one

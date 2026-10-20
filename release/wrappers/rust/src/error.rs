@@ -47,3 +47,31 @@ pub(crate) fn check(code: i32) -> Result<()> {
         Err(Error(code))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_maps_zero_to_ok() {
+        assert_eq!(check(0), Ok(()));
+    }
+
+    #[test]
+    fn check_maps_nonzero_to_error() {
+        assert_eq!(check(1), Err(Error(1)));
+        assert_eq!(check(-2), Err(Error(-2)));
+    }
+
+    #[test]
+    fn error_exposes_raw_code() {
+        assert_eq!(Error::new(0x1234).code(), 0x1234);
+        assert_eq!(Error::new(-1).code(), -1);
+    }
+
+    #[test]
+    fn error_display_formats_negative_and_hex() {
+        assert_eq!(format!("{}", Error::new(-1)), "Snap7 error (-1)");
+        assert_eq!(format!("{}", Error::new(0x1234)), "Snap7 error 0x00001234");
+    }
+}

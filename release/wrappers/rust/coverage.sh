@@ -20,10 +20,9 @@ if [[ "$MODE" == "--cpp" ]]; then
     echo "==> Building and running tests with C++ coverage enabled"
     SNAP7_COVERAGE=1 cargo test --quiet
 
-    # The C++ library is compiled by the `snap7` wrapper crate (a path
-    # dependency), so its objects and .gcno/.gcda files live in that crate's
-    # build output directory.
-    OUT_DIR="$(ls -d target/debug/build/snap7-*/out 2>/dev/null | grep -v snap7-tests | head -n1)"
+    # The C++ library is compiled by this crate's build script, so its objects
+    # and .gcno/.gcda files live in the crate's build output directory.
+    OUT_DIR="$(ls -d target/debug/build/snap7-*/out 2>/dev/null | head -n1)"
     echo "==> Build output: $OUT_DIR"
 
     COV_DIR="target/cov-cpp"
@@ -91,8 +90,9 @@ elif [[ "$MODE" == "--rust" ]]; then
     PROFRAW="$(find "$PROFRAW_DIR" -name '*.profraw' -print | tr '\n' ' ')"
     "$PROFDATA" merge -sparse $PROFRAW -o "$PROFRAW_DIR/coverage.profdata"
 
-    # The test binary is the only instrumented artifact.
-    TEST_BIN="$(find target/debug/deps -maxdepth 1 -name 'snap7_tests-*' -type f -executable | head -n1)"
+    # Report on the library's unit-test binary (integration tests are separate
+    # binaries; this pass is a best-effort view of the Rust wrapper code).
+    TEST_BIN="$(find target/debug/deps -maxdepth 1 -name 'snap7-*' -type f -executable | head -n1)"
     "$LLVM_COV" report \
         --ignore-filename-regex='/.cargo/|/rustc/' \
         --instr-profile "$PROFRAW_DIR/coverage.profdata" \

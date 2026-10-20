@@ -443,3 +443,61 @@ impl From<ffi::TSrvEvent> for SrvEvent {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn word_len_sizes() {
+        assert_eq!(WordLen::Bit.size(), 1);
+        assert_eq!(WordLen::Byte.size(), 1);
+        assert_eq!(WordLen::Char.size(), 1);
+        assert_eq!(WordLen::Word.size(), 2);
+        assert_eq!(WordLen::Int.size(), 2);
+        assert_eq!(WordLen::DWord.size(), 4);
+        assert_eq!(WordLen::DInt.size(), 4);
+        assert_eq!(WordLen::Real.size(), 4);
+        assert_eq!(WordLen::Counter.size(), 2);
+        assert_eq!(WordLen::Timer.size(), 2);
+    }
+
+    #[test]
+    fn plc_date_time_round_trip() {
+        let dt = PlcDateTime {
+            year: 2026,
+            month: 10,
+            day: 20,
+            hour: 12,
+            minute: 34,
+            second: 56,
+            day_of_week: 2,
+        };
+        let raw: ffi::Tm = dt.into();
+        assert_eq!(raw.tm_year, 126);
+        assert_eq!(raw.tm_mon, 9);
+        assert_eq!(raw.tm_mday, 20);
+        assert_eq!(raw.tm_hour, 12);
+        assert_eq!(raw.tm_min, 34);
+        assert_eq!(raw.tm_sec, 56);
+        let back: PlcDateTime = raw.into();
+        assert_eq!(back, dt);
+    }
+
+    #[test]
+    fn c_string_stops_at_nul() {
+        let buf = [b'h', b'i', 0, b'x'];
+        assert_eq!(c_string(&buf), "hi");
+    }
+
+    #[test]
+    fn block_info_conversion() {
+        let mut raw = ffi::TS7BlockInfo::default();
+        raw.blk_number = 7;
+        raw.author[0] = b'a';
+        raw.author[1] = b'b';
+        let info: BlockInfo = raw.into();
+        assert_eq!(info.block_number, 7);
+        assert_eq!(info.author, "ab");
+    }
+}
