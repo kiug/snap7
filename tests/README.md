@@ -70,11 +70,12 @@ gracefully while still exercising the bind-error path.
 ## Coverage
 
 ```sh
-make cov         # build with --coverage, run, and generate gcov reports
-make cov-build   # build the coverage binary (no run)
-make cov-run     # run the coverage binary
-make cov-report  # generate gcov reports from an already-run coverage build
-make cov-html    # HTML + branch coverage (requires lcov + genhtml)
+make cov          # build with --coverage, run, and generate gcov reports
+make cov-build    # build the coverage binary (no run)
+make cov-run      # run the coverage binary
+make cov-report   # generate gcov reports from an already-run coverage build
+make cov-check    # fail if line coverage is below 85% (requires gcovr)
+make cov-html     # HTML + branch coverage (requires lcov + genhtml)
 ```
 
 `make cov` rebuilds with `--coverage`, runs the suite, and generates per-file
@@ -92,11 +93,15 @@ message about a missing `lcov` appears).
 > between them so the object files are rebuilt with the right flags.
 
 For a CI quality gate, enforce a line-coverage threshold with `gcovr`
-(`pip install gcovr`):
+(`pip install gcovr`). `make cov-check` runs gcovr against the current coverage
+build and fails below 85%:
 
 ```sh
-gcovr --fail-under 85 --exclude 'tests/' --exclude '.*\.h'
+make cov-check
 ```
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) builds, runs the suite,
+applies `setcap` so the partner round-trip runs, and enforces this gate.
 
 ### Techniques used to raise coverage
 

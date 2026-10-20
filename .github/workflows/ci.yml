@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run unit tests
+        run: |
+          cd tests
+          make clean && make test
+
+      - name: Build with coverage instrumentation
+        run: |
+          cd tests
+          make clean
+          make cov-build
+
+      - name: Grant port-102 capability
+        run: |
+          cd tests
+          sudo setcap 'cap_net_bind_service=+ep' build/snap7_tests
+
+      - name: Run coverage
+        run: |
+          cd tests
+          make cov-run
+
+      - name: Coverage gate
+        run: |
+          pip install gcovr
+          cd tests
+          make cov-check

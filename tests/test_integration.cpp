@@ -668,6 +668,51 @@ TEST(integration_read_szl_all_ids) {
     CHECK_NE(Cli_ReadSZL(h.client, 0x0111, 0x0000, &buf, size), 0);
 }
 
+// Builds a raw SZL userdata request with the given subfunction. Subfunctions
+// other than 0x01 (read) are not reachable through the public C API.
+static void build_szl_userdata_request(char* buf, byte subfun) {
+    TS7ReqHeader* hdr = reinterpret_cast<TS7ReqHeader*>(buf);
+    TReqFunTypedParams* params =
+        reinterpret_cast<TReqFunTypedParams*>(buf + sizeof(TS7ReqHeader));
+    std::memset(buf, 0, sizeof(TS7ReqHeader) + sizeof(TReqFunTypedParams));
+    hdr->P = 0x32;
+    hdr->PDUType = PduType_userdata;
+    hdr->ParLen = 0x0800;  // sizeof(TReqFunTypedParams) == 8, big-endian
+    params->Head[0] = 0x00;
+    params->Head[1] = 0x01;
+    params->Head[2] = 0x12;
+    params->Plen = 0x04;
+    params->Uk = 0x11;
+    params->Tg = grSZL;
+    params->SubFun = subfun;
+    params->Seq = 0x00;
+}
+
+TEST(integration_szl_system_state) {
+    Harness h;
+    char buf[512] = {0};
+    build_szl_userdata_request(buf, 0x02);  // read system state
+
+    int size = (int)(sizeof(TS7ReqHeader) + sizeof(TReqFunTypedParams));
+    CHECK_EQ(Cli_IsoExchangeBuffer(h.client, buf, size), 0);
+    CHECK(size >= 10);
+
+    TS7Params7* resp = reinterpret_cast<TS7Params7*>(buf + sizeof(TS7ResHeader17));
+    CHECK_EQ(resp->Err, 0);  // system state served
+}
+
+TEST(integration_szl_invalid_subfunction) {
+    Harness h;
+    char buf[512] = {0};
+    build_szl_userdata_request(buf, 0x03);  // neither read nor system state
+
+    int size = (int)(sizeof(TS7ReqHeader) + sizeof(TReqFunTypedParams));
+    CHECK_EQ(Cli_IsoExchangeBuffer(h.client, buf, size), 0);
+
+    TS7Params7* resp = reinterpret_cast<TS7Params7*>(buf + sizeof(TS7ResHeader17));
+    CHECK_EQ(resp->Err, 0x02D4);  // SZL not available
+}
+
 TEST(integration_pdu_fuzzing_invalid_type) {
     Harness h;
     int timeout = 300;

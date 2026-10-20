@@ -1,17 +1,11 @@
 // White-box unit tests.
 //
-// These reach private/protected members by redefining the access specifiers to
-// `public` before including the Snap7 headers. Access specifiers do not affect
-// object layout, so the resulting objects link correctly against the normally
-// compiled library (which does not see these macros).
-
-#define private public
-#define protected public
+// These reach private/protected members by compiling this translation unit
+// with `-fno-access-control` (see the Makefile). Access specifiers do not
+// affect object layout, so the resulting objects link correctly against the
+// normally compiled library.
 
 #include "snap7_libmain.h"
-
-#undef private
-#undef protected
 
 #include "test.h"
 

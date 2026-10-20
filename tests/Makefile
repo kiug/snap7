@@ -44,7 +44,7 @@ DEPS       := $(SNAP7_OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
 TARGET := $(BUILD)/snap7_tests
 
-.PHONY: all test cov cov-build cov-run cov-report cov-html clean setcap
+.PHONY: all test cov cov-build cov-run cov-report cov-check cov-html clean setcap
 
 all: $(TARGET)
 
@@ -58,6 +58,13 @@ $(BUILD)/%.o: ../%.cpp
 $(BUILD)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(COVERAGE_FLAGS) $(INCLUDES) -MMD -MP -c $(abspath $<) -o $@
+
+# test_whitebox.cpp reaches private/protected members; compiling it with
+# -fno-access-control is cleaner than the `#define private public` macro hack
+# and keeps the access specifiers untouched for every other translation unit.
+$(BUILD)/test_whitebox.o: test_whitebox.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(COVERAGE_FLAGS) $(INCLUDES) -fno-access-control -MMD -MP -c $(abspath $<) -o $@
 
 $(TARGET): $(SNAP7_OBJS) $(TEST_OBJS)
 	$(CXX) $(CXXFLAGS) $(COVERAGE_FLAGS) -o $@ $^ $(LIBS)
@@ -113,6 +120,13 @@ cov-report:
 		awk -v c="$$covered" -v t="$$total" 'BEGIN{printf "  line coverage: %.2f%%\n", 100*c/t}'; \
 	fi; \
 	echo "====================================================="
+
+# Enforce a line-coverage threshold with gcovr. Run after cov/cov-build+cov-run
+# so the .gcda data is present. Requires: pip install gcovr.
+cov-check:
+	gcovr --root .. --object-directory $(BUILD) \
+		--filter 'src/.*\.cpp$$' \
+		--fail-under-line 85 --print-summary
 
 clean:
 	rm -rf $(BUILD)
