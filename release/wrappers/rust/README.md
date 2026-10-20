@@ -76,17 +76,57 @@ and `ar`).
 
 ## Tests
 
-Unit tests live in `src/` (`#[cfg(test)]`), integration tests in `tests/`:
+Unit tests live in `src/` (`#[cfg(test)]`); integration tests live in
+`tests/` (each file is a separate test binary using the public API).
 
 ```sh
-cargo test
+cargo test                        # run everything (unit + integration)
+cargo test --lib                  # unit tests only
+cargo test --test client          # a single integration test binary
+cargo test --test integration     # the client↔server round-trips
+cargo test <name>                 # a single test by name
 ```
+
+Network tests bind a high port (4102) and are serialized internally, so they
+run safely as an unprivileged user.
+
+> The partner `BSend`/`BRecv` round trip needs the passive partner to bind the
+> privileged port 102 (hardcoded in Snap7), which on Linux requires
+> `CAP_NET_BIND_SERVICE`. Without it the test detects the bind failure and
+> skips the network portion gracefully. To exercise it fully, grant the
+> capability to the test binary and re-run:
+>
+> ```sh
+> cargo test --test wrapper_partner --no-run
+> sudo setcap 'cap_net_bind_service=+ep' \
+>     "$(find target/debug/deps -name 'wrapper_partner-*' -type f -executable)"
+> cargo test --test wrapper_partner -- --nocapture
+> ```
+>
+> The capability is stored on the binary file, so it must be re-applied after
+> every rebuild (or run the suite as root).
 
 ## Coverage
 
-Setting `SNAP7_COVERAGE=1` recompiles the C++ sources with `--coverage` so that
-`gcov` / `lcov` can produce a line-coverage report for the C++ implementation:
+The crate reports two coverage metrics:
+
+- **C++ coverage** — the Snap7 library itself (the meaningful metric).
+- **Rust coverage** — the wrapper code in `src/`.
 
 ```sh
-./coverage.sh --cpp
+./coverage.sh --cpp    # C++ line coverage via gcov (requires gcc/gcov)
+./coverage.sh --rust   # Rust coverage via llvm-cov (requires llvm-tools-preview)
+```
+
+`--cpp` recompiles the C++ sources with `--coverage` (via `SNAP7_COVERAGE=1`),
+runs the suite, and writes per-file `.gcov` reports to `target/cov-cpp/` plus a
+total line-coverage summary.
+
+`--rust` instruments the Rust code with `-C instrument-coverage` and prints an
+`llvm-cov` report (per-file and total) for the `src/` wrapper code.
+
+To install the optional Rust coverage tools:
+
+```sh
+rustup component add llvm-tools-preview
 ```
