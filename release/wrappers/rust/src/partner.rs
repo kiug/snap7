@@ -251,3 +251,41 @@ impl Drop for Partner {
         unsafe { ffi::Par_Destroy(&mut self.raw) };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_from_code() {
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_STOPPED),
+            PartnerStatus::Stopped
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_CONNECTING),
+            PartnerStatus::Connecting
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_WAITING),
+            PartnerStatus::Waiting
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_LINKED),
+            PartnerStatus::Linked
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_SENDING),
+            PartnerStatus::Sending
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_RECEIVING),
+            PartnerStatus::Receiving
+        );
+        assert_eq!(
+            PartnerStatus::from_code(ffi::PAR_BINDERROR),
+            PartnerStatus::BindError
+        );
+        assert_eq!(PartnerStatus::from_code(0x1234), PartnerStatus::Stopped);
+    }
+}

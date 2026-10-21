@@ -69,6 +69,27 @@ fn error_text_returns_description() {
 }
 
 #[test]
+fn raw_handle() {
+    let partner = Partner::create(true);
+    assert_ne!(partner.raw(), 0);
+}
+
+#[test]
+fn start_method_covers_par_start() {
+    let partner = Partner::create(true);
+    // Exercise the param-based start path. No remote address is configured, so
+    // the start fails cleanly; only the code path is covered.
+    let _ = partner.start();
+    let _ = partner.stop();
+}
+
+#[test]
+fn get_param_invalid_number_errors() {
+    let partner = Partner::create(true);
+    assert!(partner.get_param_i32(9999).is_err());
+}
+
+#[test]
 fn bsend_brecv_round_trip() {
     let _lock = lock_net();
 

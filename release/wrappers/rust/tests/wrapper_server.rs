@@ -89,3 +89,22 @@ fn start_and_stop() {
 fn error_text_returns_description() {
     assert!(!Server::error_text(0x0020_0000).is_empty());
 }
+
+#[test]
+fn start_method_and_raw() {
+    let _lock = lock_net();
+    let server = Server::create();
+    assert_ne!(server.raw(), 0);
+    server.set_local_port(TEST_PORT).unwrap();
+    // `start()` uses the configured params (default local address 0.0.0.0)
+    // rather than taking an address argument like `start_to`.
+    server.start().unwrap();
+    server.stop().unwrap();
+}
+
+#[test]
+fn get_param_invalid_number_errors() {
+    let server = Server::create();
+    assert!(server.get_param_i32(9999).is_err());
+    assert!(server.get_param_u16(9999).is_err());
+}
