@@ -46,8 +46,8 @@ jobs:
         run: |
           cd release/wrappers/rust
           cargo test --no-run
-          sudo setcap 'cap_net_bind_service=+ep' \
-            "$(find target/debug/deps -name 'wrapper_partner-*' -type f -executable)"
+          find target/debug/deps -name 'wrapper_partner-*' -type f -executable \
+            -exec sudo setcap 'cap_net_bind_service=+ep' {} +
           cargo test
 
       - name: Measure Rust wrapper coverage
@@ -55,6 +55,6 @@ jobs:
           rustup component add llvm-tools-preview
           cd release/wrappers/rust
           RUSTFLAGS="-C instrument-coverage" cargo test --test wrapper_partner --no-run
-          sudo setcap 'cap_net_bind_service=+ep' \
-            "$(find target/debug/deps -name 'wrapper_partner-*' -type f -executable)"
+          find target/debug/deps -name 'wrapper_partner-*' -type f -executable \
+            -exec sudo setcap 'cap_net_bind_service=+ep' {} +
           ./coverage.sh --rust
