@@ -386,6 +386,8 @@ fn plc_status_and_control() {
     assert_eq!(h.client.get_plc_status().unwrap(), CpuStatus::Stop);
     h.client.plc_hot_start().unwrap();
     assert_eq!(h.client.get_plc_status().unwrap(), CpuStatus::Run);
+    h.client.plc_cold_start().unwrap();
+    assert_eq!(h.client.get_plc_status().unwrap(), CpuStatus::Run);
 
     h.client.copy_ram_to_rom(1000).unwrap();
     h.client.compress(1000).unwrap();
@@ -433,4 +435,56 @@ fn disconnect() {
     assert!(h.client.is_connected().unwrap());
     h.client.disconnect().unwrap();
     assert!(!h.client.is_connected().unwrap());
+}
+
+#[test]
+fn connect_via_connect_method() {
+    // The harness keeps a server running; we exercise a *second* client that
+    // connects via the explicit params + `connect()` path.
+    let _harness = Harness::new();
+
+    let client = Client::create();
+    client.set_remote_port(TEST_PORT).unwrap();
+    client
+        .set_connection_params("127.0.0.1", 0x0100, 0x0102)
+        .unwrap();
+    client.connect().unwrap();
+    assert!(client.is_connected().unwrap());
+    client.disconnect().unwrap();
+    assert!(!client.is_connected().unwrap());
+}
+
+#[test]
+fn async_db_round_trip() {
+    let h = Harness::new();
+    let pattern: Vec<u8> = (0..64u8).collect();
+
+    h.client.as_db_write(DB1 as i32, 0, &pattern).unwrap();
+    h.client.wait_as_completion(5000).unwrap();
+
+    let mut out = vec![0u8; 64];
+    h.client.as_db_read(DB1 as i32, 0, &mut out).unwrap();
+    h.client.wait_as_completion(5000).unwrap();
+    assert_eq!(out, pattern);
+    assert_eq!(&h.db1()[..64], &pattern[..]);
+}
+
+#[test]
+fn async_check_completion() {
+    let h = Harness::new();
+
+    // With no job pending, Snap7 reports completion immediately.
+    assert!(h.client.check_as_completion().unwrap());
+
+    let pattern: Vec<u8> = (0..32u8).collect();
+    h.client.as_db_write(DB1 as i32, 0, &pattern).unwrap();
+    h.client.wait_as_completion(5000).unwrap();
+    assert!(h.client.check_as_completion().unwrap());
+}
+
+#[test]
+fn iso_exchange_buffer_rejects_malformed_pdu() {
+    let h = Harness::new();
+    let mut buf = [0x32u8, 0x01];
+    assert!(h.client.iso_exchange_buffer(&mut buf).is_err());
 }

@@ -1,6 +1,6 @@
 //! Safe `Client` tests that don't require a running server.
 
-use snap7::{Client, ConnectionType};
+use snap7::{Area, BlockType, Client, ConnectionType, WordLen};
 
 #[test]
 fn create_and_destroy() {
@@ -88,4 +88,50 @@ fn get_pg_block_info_decodes_header() {
 #[test]
 fn error_text_returns_description() {
     assert!(!Client::error_text(0x0020_0000).is_empty());
+}
+
+#[test]
+fn get_param_invalid_number_errors() {
+    let client = Client::create();
+    assert!(client.get_param_i32(9999).is_err());
+    assert!(client.get_param_u16(9999).is_err());
+}
+
+#[test]
+fn operations_without_connection_fail() {
+    let client = Client::create();
+
+    assert!(client.get_ag_block_info(BlockType::Db, 1).is_err());
+    assert!(client.list_blocks_of_type(BlockType::Db).is_err());
+    assert!(client.upload(BlockType::Db, 1).is_err());
+    assert!(client.full_upload(BlockType::Db, 1).is_err());
+    assert!(client.db_get(1).is_err());
+    assert!(client.read_szl(0x0011, 0x0000).is_err());
+    assert!(client.read_szl_list().is_err());
+}
+
+#[test]
+fn get_pg_block_info_invalid_block_fails() {
+    let client = Client::create();
+    // A zeroed block has no valid header, which Snap7 reports as an invalid
+    // block size (a too-short buffer would instead over-read and crash).
+    let block = vec![0u8; 128];
+    assert!(client.get_pg_block_info(&block).is_err());
+}
+
+#[test]
+#[should_panic(expected = "buffer too small")]
+fn read_area_buffer_too_small_panics() {
+    let client = Client::create();
+    let mut buf = [0u8; 2];
+    // amount * word_len.size() == 4, but the buffer holds only 2 bytes.
+    let _ = client.read_area(Area::DataBlock, 1, 0, 4, WordLen::Byte, &mut buf);
+}
+
+#[test]
+#[should_panic(expected = "buffer too small")]
+fn write_area_buffer_too_small_panics() {
+    let client = Client::create();
+    let buf = [0u8; 2];
+    let _ = client.write_area(Area::DataBlock, 1, 0, 4, WordLen::Byte, &buf);
 }

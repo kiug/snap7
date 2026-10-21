@@ -501,4 +501,94 @@ mod tests {
         assert_eq!(info.block_number, 7);
         assert_eq!(info.author, "ab");
     }
+
+    #[test]
+    fn area_codes() {
+        assert_eq!(Area::ProcessInputs.code(), ffi::S7_AREA_PE);
+        assert_eq!(Area::ProcessOutputs.code(), ffi::S7_AREA_PA);
+        assert_eq!(Area::Merkers.code(), ffi::S7_AREA_MK);
+        assert_eq!(Area::DataBlock.code(), ffi::S7_AREA_DB);
+        assert_eq!(Area::Counters.code(), ffi::S7_AREA_CT);
+        assert_eq!(Area::Timers.code(), ffi::S7_AREA_TM);
+    }
+
+    #[test]
+    fn word_len_codes() {
+        assert_eq!(WordLen::Bit.code(), ffi::S7_WL_BIT);
+        assert_eq!(WordLen::Byte.code(), ffi::S7_WL_BYTE);
+        assert_eq!(WordLen::Char.code(), ffi::S7_WL_CHAR);
+        assert_eq!(WordLen::Word.code(), ffi::S7_WL_WORD);
+        assert_eq!(WordLen::Int.code(), ffi::S7_WL_INT);
+        assert_eq!(WordLen::DWord.code(), ffi::S7_WL_DWORD);
+        assert_eq!(WordLen::DInt.code(), ffi::S7_WL_DINT);
+        assert_eq!(WordLen::Real.code(), ffi::S7_WL_REAL);
+        assert_eq!(WordLen::Counter.code(), ffi::S7_WL_COUNTER);
+        assert_eq!(WordLen::Timer.code(), ffi::S7_WL_TIMER);
+    }
+
+    #[test]
+    fn block_type_codes() {
+        assert_eq!(BlockType::Ob.code(), ffi::BLOCK_OB);
+        assert_eq!(BlockType::Db.code(), ffi::BLOCK_DB);
+        assert_eq!(BlockType::Sdb.code(), ffi::BLOCK_SDB);
+        assert_eq!(BlockType::Fc.code(), ffi::BLOCK_FC);
+        assert_eq!(BlockType::Sfc.code(), ffi::BLOCK_SFC);
+        assert_eq!(BlockType::Fb.code(), ffi::BLOCK_FB);
+        assert_eq!(BlockType::Sfb.code(), ffi::BLOCK_SFB);
+    }
+
+    #[test]
+    fn connection_type_codes() {
+        assert_eq!(ConnectionType::Pg.code(), ffi::CONNTYPE_PG);
+        assert_eq!(ConnectionType::Op.code(), ffi::CONNTYPE_OP);
+        assert_eq!(ConnectionType::Basic.code(), ffi::CONNTYPE_BASIC);
+    }
+
+    #[test]
+    fn cpu_status_codes() {
+        assert_eq!(CpuStatus::Unknown.code(), ffi::CPU_STATUS_UNKNOWN);
+        assert_eq!(CpuStatus::Run.code(), ffi::CPU_STATUS_RUN);
+        assert_eq!(CpuStatus::Stop.code(), ffi::CPU_STATUS_STOP);
+
+        assert_eq!(CpuStatus::from_code(ffi::CPU_STATUS_RUN), CpuStatus::Run);
+        assert_eq!(CpuStatus::from_code(ffi::CPU_STATUS_STOP), CpuStatus::Stop);
+        assert_eq!(CpuStatus::from_code(0x1234), CpuStatus::Unknown);
+        assert_eq!(
+            CpuStatus::from_code(ffi::CPU_STATUS_UNKNOWN),
+            CpuStatus::Unknown
+        );
+    }
+
+    #[test]
+    fn server_area_codes() {
+        assert_eq!(ServerArea::ProcessInputs.code(), ffi::SRV_AREA_PE);
+        assert_eq!(ServerArea::ProcessOutputs.code(), ffi::SRV_AREA_PA);
+        assert_eq!(ServerArea::Merkers.code(), ffi::SRV_AREA_MK);
+        assert_eq!(ServerArea::Counters.code(), ffi::SRV_AREA_CT);
+        assert_eq!(ServerArea::Timers.code(), ffi::SRV_AREA_TM);
+        assert_eq!(ServerArea::DataBlock.code(), ffi::SRV_AREA_DB);
+    }
+
+    #[test]
+    fn srv_event_from_raw() {
+        let raw = ffi::TSrvEvent {
+            evt_time: 1_700_000_000,
+            evt_sender: 7,
+            evt_code: 0x00C0_0000,
+            evt_ret_code: 3,
+            evt_param1: 4,
+            evt_param2: 5,
+            evt_param3: 6,
+            evt_param4: 7,
+        };
+        let evt: SrvEvent = raw.into();
+        assert_eq!(evt.time, 1_700_000_000);
+        assert_eq!(evt.sender, 7);
+        assert_eq!(evt.code, 0x00C0_0000);
+        assert_eq!(evt.ret_code, 3);
+        assert_eq!(evt.param1, 4);
+        assert_eq!(evt.param2, 5);
+        assert_eq!(evt.param3, 6);
+        assert_eq!(evt.param4, 7);
+    }
 }

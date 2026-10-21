@@ -115,10 +115,17 @@ fn bsend_brecv_round_trip() {
     assert_eq!(r_id2, 0x5566_7788);
     assert_eq!(out2, payload);
 
-    // Transfer statistics reflect the sent/received bytes.
+    // Transfer statistics reflect the sent/received bytes. The active partner
+    // only sends in this test (b_send + as_b_send) and never receives, while
+    // the passive partner only receives and never sends.
     let (sent, recv, _, _) = active.get_stats().unwrap();
     assert!(sent > 0);
-    assert!(recv > 0);
+    assert_eq!(recv, 0);
+
+    let (sent_p, recv_p, _, _) = passive.get_stats().unwrap();
+    assert_eq!(sent_p, 0);
+    assert!(recv_p > 0);
+
     let (send_time, recv_time) = active.get_times().unwrap();
     let _ = (send_time, recv_time);
 
