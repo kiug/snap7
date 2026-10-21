@@ -36,3 +36,25 @@ jobs:
           pip install gcovr
           cd tests
           make cov-check
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test Rust wrapper
+        run: |
+          cd release/wrappers/rust
+          cargo test --no-run
+          sudo setcap 'cap_net_bind_service=+ep' \
+            "$(find target/debug/deps -name 'wrapper_partner-*' -type f -executable)"
+          cargo test
+
+      - name: Measure Rust wrapper coverage
+        run: |
+          rustup component add llvm-tools-preview
+          cd release/wrappers/rust
+          RUSTFLAGS="-C instrument-coverage" cargo test --test wrapper_partner --no-run
+          sudo setcap 'cap_net_bind_service=+ep' \
+            "$(find target/debug/deps -name 'wrapper_partner-*' -type f -executable)"
+          ./coverage.sh --rust
